@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "Jonot_Functions": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7279",
+      "launchBrowser": false
+    }
+  }
+}

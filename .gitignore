@@ -1,0 +1,6 @@
+azurite-data
+obj/
+.vscode/
+local.settings.json
+bin/
+.env

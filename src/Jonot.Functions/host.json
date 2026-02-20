@@ -1,0 +1,23 @@
+{
+    "version": "2.0",
+    "logging": {
+        "applicationInsights": {
+            "samplingSettings": {
+                "isEnabled": true,
+                "excludedTypes": "Request"
+            },
+            "enableLiveMetricsFilters": true
+        }
+    },
+    "extensions": {
+        "serviceBus": {
+            "prefetchCount": 0,
+            "autoCompleteMessages": true,
+            "maxConcurrentCalls": 16,
+            "maxConcurrentSessions": 1,
+            "maxConcurrentCallsPerSession": 5,
+            "sessionIdleTimeout": "00:05:00",
+            "maxAutoLockRenewalDuration": "00:05:00"
+        }
+    }
+}
