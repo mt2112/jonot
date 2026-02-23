@@ -5,17 +5,17 @@ using System.Text.Json;
 using Jonot.Functions.Models;
 using Jonot.Functions.Services;
 using Microsoft.Extensions.Logging;
-using NSubstitute;
+using Moq;
 
 public class RestApiSenderTests
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<RestApiSender> _logger;
+    private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
+    private readonly Mock<ILogger<RestApiSender>> _loggerMock;
 
     public RestApiSenderTests()
     {
-        _httpClientFactory = Substitute.For<IHttpClientFactory>();
-        _logger = Substitute.For<ILogger<RestApiSender>>();
+        _httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        _loggerMock = new Mock<ILogger<RestApiSender>>();
     }
 
     [Fact]
@@ -24,9 +24,9 @@ public class RestApiSenderTests
         // Arrange
         var handler = new FakeHttpHandler(new HttpResponseMessage(HttpStatusCode.OK));
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://httpbin.io/get") };
-        _httpClientFactory.CreateClient("ExternalApi").Returns(httpClient);
+        _httpClientFactoryMock.Setup(x => x.CreateClient("ExternalApi")).Returns(httpClient);
 
-        var sender = new RestApiSender(_httpClientFactory, _logger);
+        var sender = new RestApiSender(_httpClientFactoryMock.Object, _loggerMock.Object);
         var message = new ApiSendMessage
         {
             CorrelationId = "test-123",
@@ -54,9 +54,9 @@ public class RestApiSenderTests
         };
         var handler = new FakeHttpHandler(response);
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://httpbin.io/get") };
-        _httpClientFactory.CreateClient("ExternalApi").Returns(httpClient);
+        _httpClientFactoryMock.Setup(x => x.CreateClient("ExternalApi")).Returns(httpClient);
 
-        var sender = new RestApiSender(_httpClientFactory, _logger);
+        var sender = new RestApiSender(_httpClientFactoryMock.Object, _loggerMock.Object);
         var message = new ApiSendMessage
         {
             CorrelationId = "test-456",
@@ -80,9 +80,9 @@ public class RestApiSenderTests
         // Arrange
         var handler = new FakeHttpHandler(new HttpRequestException("Connection refused"));
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://httpbin.io/get") };
-        _httpClientFactory.CreateClient("ExternalApi").Returns(httpClient);
+        _httpClientFactoryMock.Setup(x => x.CreateClient("ExternalApi")).Returns(httpClient);
 
-        var sender = new RestApiSender(_httpClientFactory, _logger);
+        var sender = new RestApiSender(_httpClientFactoryMock.Object, _loggerMock.Object);
         var message = new ApiSendMessage
         {
             CorrelationId = "test-789",
@@ -106,9 +106,9 @@ public class RestApiSenderTests
         // Arrange
         var handler = new FakeHttpHandler(new HttpResponseMessage(HttpStatusCode.OK), delay: TimeSpan.FromSeconds(10));
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://httpbin.io/get") };
-        _httpClientFactory.CreateClient("ExternalApi").Returns(httpClient);
+        _httpClientFactoryMock.Setup(x => x.CreateClient("ExternalApi")).Returns(httpClient);
 
-        var sender = new RestApiSender(_httpClientFactory, _logger);
+        var sender = new RestApiSender(_httpClientFactoryMock.Object, _loggerMock.Object);
         var message = new ApiSendMessage
         {
             CorrelationId = "test-cancel",
@@ -129,8 +129,8 @@ public class RestApiSenderTests
     {
         // Arrange
         var httpClient = new HttpClient { BaseAddress = new Uri("https://httpbin.io/get") };
-        _httpClientFactory.CreateClient("ExternalApi").Returns(httpClient);
-        var sender = new RestApiSender(_httpClientFactory, _logger);
+        _httpClientFactoryMock.Setup(x => x.CreateClient("ExternalApi")).Returns(httpClient);
+        var sender = new RestApiSender(_httpClientFactoryMock.Object, _loggerMock.Object);
 
         // Act & Assert
         Assert.ThrowsAsync<ArgumentNullException>(() => sender.SendAsync(null!));

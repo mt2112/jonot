@@ -9,7 +9,7 @@ using Jonot.Functions.Functions;
 using Jonot.Functions.Models;
 using Jonot.Functions.Services;
 using Microsoft.Extensions.Logging;
-using NSubstitute;
+using Moq;
 using Xunit.Abstractions;
 
 /// <summary>
@@ -59,12 +59,11 @@ public class RateLimitingDemonstrationTests
         var stopwatch = Stopwatch.StartNew();
 
         // Mock RestApiSender — records each call's timing
-        var restApiSender = Substitute.For<IRestApiSender>();
-        restApiSender
-            .SendAsync(Arg.Any<ApiSendMessage>(), Arg.Any<CancellationToken>())
-            .Returns(async callInfo =>
+        var restApiSenderMock = new Mock<IRestApiSender>();
+        restApiSenderMock
+            .Setup(x => x.SendAsync(It.IsAny<ApiSendMessage>(), It.IsAny<CancellationToken>()))
+            .Returns(async (ApiSendMessage msg, CancellationToken ct) =>
             {
-                var msg = callInfo.Arg<ApiSendMessage>();
                 var callTime = stopwatch.Elapsed;
 
                 // Simulate external API processing time
@@ -86,30 +85,28 @@ public class RateLimitingDemonstrationTests
             });
 
         // Mock ServiceBusClient — records output queue routing
-        var mockSenderA = Substitute.For<ServiceBusSender>();
-        var mockSenderB = Substitute.For<ServiceBusSender>();
+        var mockSenderA = new Mock<ServiceBusSender>();
+        var mockSenderB = new Mock<ServiceBusSender>();
 
         mockSenderA
-            .SendMessageAsync(Arg.Any<ServiceBusMessage>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
+            .Setup(x => x.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()))
+            .Returns((ServiceBusMessage sbMsg, CancellationToken ct) =>
             {
-                var sbMsg = callInfo.Arg<ServiceBusMessage>();
                 outputQueueLog.Add(new OutputQueueRecord(sbMsg.CorrelationId, "jono-a-out", stopwatch.Elapsed));
                 return Task.CompletedTask;
             });
 
         mockSenderB
-            .SendMessageAsync(Arg.Any<ServiceBusMessage>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
+            .Setup(x => x.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()))
+            .Returns((ServiceBusMessage sbMsg, CancellationToken ct) =>
             {
-                var sbMsg = callInfo.Arg<ServiceBusMessage>();
                 outputQueueLog.Add(new OutputQueueRecord(sbMsg.CorrelationId, "jono-b-out", stopwatch.Elapsed));
                 return Task.CompletedTask;
             });
 
-        var serviceBusClient = Substitute.For<ServiceBusClient>();
-        serviceBusClient.CreateSender("jono-a-out").Returns(mockSenderA);
-        serviceBusClient.CreateSender("jono-b-out").Returns(mockSenderB);
+        var serviceBusClientMock = new Mock<ServiceBusClient>();
+        serviceBusClientMock.Setup(x => x.CreateSender("jono-a-out")).Returns(mockSenderA.Object);
+        serviceBusClientMock.Setup(x => x.CreateSender("jono-b-out")).Returns(mockSenderB.Object);
 
         // Real rate limiter — same configuration as production
         var rateLimiter = new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions
@@ -121,8 +118,8 @@ public class RateLimitingDemonstrationTests
             AutoReplenishment = true
         });
 
-        var logger = Substitute.For<ILogger<ApiSendFunction>>();
-        var function = new ApiSendFunction(restApiSender, serviceBusClient, rateLimiter, logger);
+        var loggerMock = new Mock<ILogger<ApiSendFunction>>();
+        var function = new ApiSendFunction(restApiSenderMock.Object, serviceBusClientMock.Object, rateLimiter, loggerMock.Object);
 
         // Create test messages — mix of A and B source types
         var messages = Enumerable.Range(1, totalMessages)

@@ -7,7 +7,7 @@ using Jonot.Functions.Functions;
 using Jonot.Functions.Models;
 using Jonot.Functions.Services;
 using Microsoft.Extensions.Logging;
-using NSubstitute;
+using Moq;
 
 public class ApiSendFunctionTests
 {
@@ -29,13 +29,16 @@ public class ApiSendFunctionTests
             StatusCode = 200
         };
 
-        var restApiSender = Substitute.For<IRestApiSender>();
-        restApiSender.SendAsync(Arg.Any<ApiSendMessage>(), Arg.Any<CancellationToken>())
-            .Returns(expectedResult);
+        var restApiSenderMock = new Mock<IRestApiSender>();
+        restApiSenderMock
+            .Setup(x => x.SendAsync(It.IsAny<ApiSendMessage>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedResult);
 
-        var mockSender = Substitute.For<ServiceBusSender>();
-        var serviceBusClient = Substitute.For<ServiceBusClient>();
-        serviceBusClient.CreateSender("jono-a-out").Returns(mockSender);
+        var mockSender = new Mock<ServiceBusSender>();
+        var serviceBusClientMock = new Mock<ServiceBusClient>();
+        serviceBusClientMock
+            .Setup(x => x.CreateSender("jono-a-out"))
+            .Returns(mockSender.Object);
 
         var rateLimiter = new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions
         {
@@ -46,8 +49,8 @@ public class ApiSendFunctionTests
             AutoReplenishment = true
         });
 
-        var logger = Substitute.For<ILogger<ApiSendFunction>>();
-        var function = new ApiSendFunction(restApiSender, serviceBusClient, rateLimiter, logger);
+        var loggerMock = new Mock<ILogger<ApiSendFunction>>();
+        var function = new ApiSendFunction(restApiSenderMock.Object, serviceBusClientMock.Object, rateLimiter, loggerMock.Object);
 
         var sbMessage = ServiceBusModelFactory.ServiceBusReceivedMessage(
             body: BinaryData.FromString(JsonSerializer.Serialize(sendMessage)),
@@ -57,15 +60,19 @@ public class ApiSendFunctionTests
         await function.RunAsync(sbMessage, CancellationToken.None);
 
         // Assert
-        await restApiSender.Received(1).SendAsync(
-            Arg.Is<ApiSendMessage>(m => m.CorrelationId == "corr-1" && m.SourceType == SourceType.A),
-            Arg.Any<CancellationToken>());
+        restApiSenderMock.Verify(
+            x => x.SendAsync(
+                It.Is<ApiSendMessage>(m => m.CorrelationId == "corr-1" && m.SourceType == SourceType.A),
+                It.IsAny<CancellationToken>()),
+            Times.Once());
 
-        serviceBusClient.Received(1).CreateSender("jono-a-out");
+        serviceBusClientMock.Verify(x => x.CreateSender("jono-a-out"), Times.Once());
 
-        await mockSender.Received(1).SendMessageAsync(
-            Arg.Is<ServiceBusMessage>(m => m.CorrelationId == "corr-1"),
-            Arg.Any<CancellationToken>());
+        mockSender.Verify(
+            x => x.SendMessageAsync(
+                It.Is<ServiceBusMessage>(m => m.CorrelationId == "corr-1"),
+                It.IsAny<CancellationToken>()),
+            Times.Once());
     }
 
     [Fact]
@@ -87,13 +94,16 @@ public class ApiSendFunctionTests
             ErrorMessage = "Server error"
         };
 
-        var restApiSender = Substitute.For<IRestApiSender>();
-        restApiSender.SendAsync(Arg.Any<ApiSendMessage>(), Arg.Any<CancellationToken>())
-            .Returns(expectedResult);
+        var restApiSenderMock = new Mock<IRestApiSender>();
+        restApiSenderMock
+            .Setup(x => x.SendAsync(It.IsAny<ApiSendMessage>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedResult);
 
-        var mockSender = Substitute.For<ServiceBusSender>();
-        var serviceBusClient = Substitute.For<ServiceBusClient>();
-        serviceBusClient.CreateSender("jono-b-out").Returns(mockSender);
+        var mockSender = new Mock<ServiceBusSender>();
+        var serviceBusClientMock = new Mock<ServiceBusClient>();
+        serviceBusClientMock
+            .Setup(x => x.CreateSender("jono-b-out"))
+            .Returns(mockSender.Object);
 
         var rateLimiter = new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions
         {
@@ -104,8 +114,8 @@ public class ApiSendFunctionTests
             AutoReplenishment = true
         });
 
-        var logger = Substitute.For<ILogger<ApiSendFunction>>();
-        var function = new ApiSendFunction(restApiSender, serviceBusClient, rateLimiter, logger);
+        var loggerMock = new Mock<ILogger<ApiSendFunction>>();
+        var function = new ApiSendFunction(restApiSenderMock.Object, serviceBusClientMock.Object, rateLimiter, loggerMock.Object);
 
         var sbMessage = ServiceBusModelFactory.ServiceBusReceivedMessage(
             body: BinaryData.FromString(JsonSerializer.Serialize(sendMessage)),
@@ -115,6 +125,6 @@ public class ApiSendFunctionTests
         await function.RunAsync(sbMessage, CancellationToken.None);
 
         // Assert
-        serviceBusClient.Received(1).CreateSender("jono-b-out");
+        serviceBusClientMock.Verify(x => x.CreateSender("jono-b-out"), Times.Once());
     }
 }
